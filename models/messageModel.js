@@ -8,12 +8,21 @@ const Message = {
     );
     return result;
   },
-
-  getByChat: async (chat_id) => {
+  getById: async (messageId) => {
+    const [messages] = await db.execute(`SELECT * FROM messages WHERE id = ?`, [
+      messageId,
+    ]);
+    return messages;
+  },
+  getByChat: async (messageId) => {
     const [messages] = await db.execute(
       `SELECT * FROM messages WHERE chat_id = ?`,
-      [chat_id]
+      [messageId]
     );
+    return messages;
+  },
+  getAll: async () => {
+    const [messages] = await db.execute(`SELECT * FROM messages`);
     return messages;
   },
 };

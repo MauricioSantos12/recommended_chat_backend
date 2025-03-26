@@ -14,6 +14,12 @@ const User = {
     const [users] = await db.execute(`SELECT * FROM users`);
     return users;
   },
+  getUserById: async (user_id) => {
+    const [user] = await db.execute(`SELECT * FROM users WHERE id = ?`, [
+      user_id,
+    ]);
+    return user;
+  },
 };
 
 module.exports = User;
