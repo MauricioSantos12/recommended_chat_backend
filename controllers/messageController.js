@@ -1,43 +1,72 @@
 const messageService = require("../services/messageService");
 const chatService = require("../services/chatService");
 const userService = require("../services/userService");
+const { responseMessageByIA } = require("../utils/useIA");
 
 exports.sendMessage = async (req, res) => {
   try {
     const { chat_id, sender, message } = req.body;
-    if (!chat_id) {
-      return res.status(400).json({ message: "chat_id is required." });
+
+    const missingField = !chat_id
+      ? "chat_id"
+      : !sender
+      ? "sender"
+      : !message
+      ? "message"
+      : null;
+    if (missingField) {
+      return res.status(400).json({ message: `${missingField} is required.` });
     }
-    if (!sender) {
-      return res.status(400).json({ message: "sender is required." });
-    }
-    if (!message) {
-      return res.status(400).json({ message: "message is required." });
-    }
-    if (sender != "user" && sender != "ai") {
+
+    if (!["user", "ai"].includes(sender)) {
       return res
         .status(400)
         .json({ message: "sender must be 'user' or 'ai'." });
     }
 
-    const [chat] = await Promise.all([chatService.getChatById(chat_id)]);
-
+    const chat = await chatService.getChatById(chat_id);
     if (!chat || chat.length === 0) {
       return res.status(404).json({ message: "Chat not registered." });
     }
 
-    const newMessage = await messageService.saveMessage(
+    const chatHistory = await messageService.getMessagesByChat(chat_id);
+
+    const answerIA = await responseMessageByIA({
+      message,
+      history: chatHistory,
+    });
+    if (
+      !answerIA ||
+      answerIA.includes("An error occurred while processing your request.")
+    ) {
+      console.error("AI Response Error:", answerIA);
+      return res
+        .status(500)
+        .json({ message: "Failed to generate AI response." });
+    }
+
+    await messageService.saveMessage(chat_id, sender, message);
+    const newIAMessage = await messageService.saveMessage(
       chat_id,
-      sender,
-      message
+      "ai",
+      answerIA
     );
+
     return res.status(201).json({
       message: "Message created successfully",
-      data: { id: newMessage.insertId, chat_id, sender, message },
+      data: {
+        id: newIAMessage.insertId,
+        chat_id,
+        sender,
+        message,
+        responseMessageByIA: answerIA,
+      },
     });
   } catch (error) {
     console.error("Error sending message:", error);
-    res.status(500).json({ message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
